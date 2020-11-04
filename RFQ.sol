@@ -13,7 +13,7 @@ contract RFQ {
     
     ufixed[] private price;
     
-    string private status;
+    
     
     
     constructor (
