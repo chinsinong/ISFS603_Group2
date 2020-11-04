@@ -15,4 +15,17 @@ contract RFQ {
     
     string private status;
     
+    
+    constructor (
+        address requestorVal
+    ) public {
+        
+    }
+    
+    function getInfo() public view returns (
+        address requestorVal
+    ) {
+        return (requestor);
+    }
+    
 }
