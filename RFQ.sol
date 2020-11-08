@@ -1,52 +1,46 @@
 pragma solidity ^0.4.25;
 pragma experimental ABIEncoderV2;
 
+import "./Quotation.sol";
+import "./PurchaseOrder.sol";
+
 contract RFQ {
-    // Person who requested the RFQ
-    address private requestor;
-    
-    // Person who can approve the RFQ
+    address private requester;
     address private approver;
     
-    // List of items in the quotations
     string[] private items;
-
-    // Quantity for each item
-    mapping(string => uint) quantity;
+    mapping(string => uint) private quantity;
     
-    // Status if the RFQ is approved
     bool private statusApproved = false;
-    
-    // Status if the RFQ has issued PO
     bool private statusPOIssued = false;
     
-    // Suppliers who can submit quotations for this RFQ
     address[] private suppliers;
-    
-    // Suppliers who can submit quotations for this RFQ
-    mapping(address => bool) suppliersList;
-    
-    // Quotations of each supplier
-    mapping(address => address) quotations;
-    
-    // Selected supplier
+    mapping(address => bool) private suppliersList;
+    mapping(address => address) private quotations;
     address private selectedSupplier;
     
-    event StatusChanged(uint256 id, bool latestStatus);
+    address private purchaseOrder;
+    
+    event RFQApproved(address rfqAddr);
+    event QuotationCreated(address quotationAddr);
+    event QuotationSubmitted(address quotationAddr);
+    event QuotationRemoved(address quotationAddr);
+    event QuotationConfirmed(address quotationAddr);
+    event PurchaseOrderCreated(address purchaseOrderAddr);
     
     constructor (
+        address requesterVal,
         address approverVal
         
     ) public {
-        require(msg.sender != approverVal, "Requestor and approver cannot be same person.");
+        require(requesterVal != approverVal, "Requester and approver cannot be same person.");
         
-        requestor = msg.sender;
+        requester = requesterVal;
         approver = approverVal;
     }
     
-    // return details of the RFQ
     function getInfo() public view returns (
-        address requestorVal,
+        address requesterVal,
         address approverVal,
         string[] itemsVal,
         uint[] quantityVal,
@@ -56,22 +50,20 @@ contract RFQ {
         address[] quotationsVal,
         address selectedSupplierVal
     ) {
-        // Check if the person requesting the RFQ details is requestor, approver or supplier
-        require(msg.sender == requestor || msg.sender == approver || suppliersList[msg.sender], "You can only getInfo if you are the requestor, approver or supplier.");
         
         // convert mapping to array
-        uint[] memory quantityList = new uint[](items.length);
+        uint[] memory quantityVal2 = new uint[](items.length);
         
         for(uint i=0; i < items.length; i++) {
-            quantityList[i] = quantity[items[i]];
+            quantityVal2[i] = quantity[items[i]];
         }
 
         address[] memory suppliersVal2 = new address[](suppliers.length);
         address[] memory quotationsVal2 = new address[](suppliers.length);
         address selectedSupplierVal2;
         
-        if(msg.sender == requestor || msg.sender == approver) {
-            // returns all suppliers and quotations information if function called by requestor or approver
+        if(msg.sender == requester || msg.sender == approver) {
+            // returns all suppliers and quotations information if function called by requester or approver
             suppliersVal2 = suppliers;
             
             for(uint j=0; j < suppliers.length; j++) {
@@ -92,7 +84,7 @@ contract RFQ {
             selectedSupplierVal2 = selectedSupplier;
         }
         
-        return (requestor, approver, items, quantityList, statusApproved, statusPOIssued, suppliersVal2, quotationsVal2, selectedSupplierVal2);
+        return (requester, approver, items, quantityVal2, statusApproved, statusPOIssued, suppliersVal2, quotationsVal2, selectedSupplierVal2);
     }
     
     function getStatusApproved() public view returns (
@@ -101,15 +93,49 @@ contract RFQ {
         return (statusApproved);
     }
     
-    function approveRFQ() public {
-        require(statusApproved == false, "RFQ is already approved.");
-        require(msg.sender == approver, "Only approver can approve the RFQ");
-        statusApproved = true;
+    function getItemInfo() public view returns (
+        string[] itemsVal,
+        uint[] quantityVal
+    ) {
+        
+        // convert mapping to array
+        uint[] memory quantityVal2 = new uint[](items.length);
+        
+        for(uint i=0; i < items.length; i++) {
+            quantityVal2[i] = quantity[items[i]];
+        }
+
+        return (items, quantityVal2);
+    }
+    
+    function getItemQuantity() public view returns (
+        uint[] quantityVal
+    ) {
+        uint[] memory quantityVal2 = new uint[](items.length);
+        
+        for(uint i=0; i < items.length; i++) {
+            quantityVal2[i] = quantity[items[i]];
+        }
+        return (quantityVal2);
+    }
+    
+    function getrequester() public view returns (
+        address requesterVal
+    ) {
+        return (requester);
+    }
+    
+    function getApprover() public view returns (
+        address approverVal
+    ) {
+        return (approver);
     }
     
     function additem(string itemVal, uint quantityVal) public {
+        require(msg.sender == requester || msg.sender == approver, "Only requester or approver can add product.");
         require(statusApproved == false, "No item can be added after RFQ is approved.");
-        require(msg.sender == requestor || msg.sender == approver, "Only requestor or approver can add product.");
+        require(bytes(itemVal).length > 0, "Item name cannot be empty.");
+        require(quantityVal >0, "Quantity cannot be empty.");
         
         if(quantity[itemVal] == 0) {
             items.push(itemVal);
@@ -118,16 +144,21 @@ contract RFQ {
     }
     
     function removeitem(string itemVal, uint quantityVal) public {
+        require(msg.sender == requester || msg.sender == approver, "Only requester or approver can remove product.");
         require(statusApproved == false, "No item can be removed after RFQ is approved.");
-        require(msg.sender == requestor || msg.sender == approver, "Only requestor or approver can remove product.");
         require(quantity[itemVal] > 0 , "Item does not exist in RFQ.");
-        require(quantityVal <= quantity[itemVal], "Quantity must be less than existing quantity.");
 
-        // shift array forward after element is removed
-        if(quantityVal == quantity[itemVal]) {
+        bytes memory a = bytes(itemVal);
+        bytes memory b;
+        
+        if(quantityVal >= quantity[itemVal]) {
+            quantity[itemVal] = 0;
+            
             for(uint i=0; i < items.length; i++) {
+                b = bytes(items[i]);
                 
-                if(keccak256(bytes(itemVal)) == keccak256(bytes(items[i]))) {
+                if(keccak256(a) == keccak256(b)) {
+                //if(keccak256(abi.encodePacked(itemVal)) == keccak256(abi.encodePacked(items[i]))) {
                     
                     for(uint j=i; j < items.length - 1; j++) {
                         items[j] = items[j+1];
@@ -138,31 +169,56 @@ contract RFQ {
                 }
             }
         }
-        
-        quantity[itemVal] -= quantityVal;
+        else {
+            quantity[itemVal] -= quantityVal;
+        }
     }
     
-    function addSupplier(address supplierVal) public {
-        require(!statusPOIssued,"Cannot add supplier after PO is issued.");
-        require(msg.sender == requestor || msg.sender == approver, "Only requestor or approver can add supplier.");
-        require(supplierVal != requestor && supplierVal != approver, "Requestor or approver cannot be supplier.");
-        require(!suppliersList[supplierVal], "Supplier is already in the list.");
+    function approveRFQ() public {
+        require(msg.sender == approver, "Only approver can approve the RFQ");
+        require(statusApproved == false, "RFQ is already approved.");
+        require(items.length > 0, "No items in RFQ.");
         
-        suppliersList[supplierVal] = true;
-        suppliers.push(supplierVal);
+        statusApproved = true;
+        emit RFQApproved(this);
     }
     
-    function removeSupplier(address supplierVal) public {
-        require(!statusPOIssued,"Cannot remove supplier after PO is issued.");
-        require(msg.sender == requestor || msg.sender == approver, "Only requestor or approver can remove supplier.");
-        require(suppliersList[supplierVal], "Supplier not in the list.");
+    function createQuotation(address requesterVal, address approverVal) public {
+        require(requesterVal != requester && requesterVal != approver, "Quotation requester cannot be RFQ requester or approver.");
+        require(approverVal != requester && approverVal != approver, "Quotation approver cannot be RFQ requester or approver.");
+        require(statusApproved, "RFQ needs to be approved before quotation can be created.");
         
-        suppliersList[supplierVal] = false;
+        Quotation quote = new Quotation(address(this), requesterVal, approverVal);
+        
+        emit QuotationCreated(quote);
+    }
+    
+    function submitQuotation(address supplier, address quotationVal) public {
+        require(supplier != requester && supplier != approver, "The supplier cannot be the requester or approver of the RFQ.");
+        require(!statusPOIssued,"Cannot submit quotation after RFQ is closed.");
+        
+        if(quotations[supplier] == address(0x0)) {
+            suppliers.push(supplier);
+            suppliersList[supplier] = true;
+        }
+        
+        quotations[supplier] = quotationVal;
+        emit QuotationSubmitted(Quotation(quotationVal));
+    }
+    
+    function removeQuotation() public {
+        require(!statusPOIssued,"Cannot remove quotation after RFQ is closed.");
+        require(quotations[msg.sender] > address(0x0), "No quotation found.");
+        
+        emit QuotationRemoved(Quotation(quotations[msg.sender]));
+        
+        quotations[msg.sender] = address(0x0);
+        suppliersList[msg.sender] = false;
         
         // shift array forward after element is removed
         for(uint i=0; i < suppliers.length; i++) {
                 
-            if(supplierVal == suppliers[i]) {
+            if(msg.sender == suppliers[i]) {
                 
                 for(uint j=i; j < suppliers.length - 1; j++) {
                     suppliers[j] = suppliers[j+1];
@@ -174,14 +230,26 @@ contract RFQ {
                 break;
             }
         }
-        
-        // clear the qutoation of the supplier, if any
-        quotations[supplierVal] = address(0x0);
-    }
+    }  
     
-    function submitQuotation(address supplierVal, address quotationVal) public {
-        require(suppliersList[supplierVal], "Supplier not in supplier list.");
+    function confirmQuotation(address supplierVal) public {
+        require(msg.sender == approver, "Only approver can confirm quotation.");
+        require(suppliersList[supplierVal], "");
         
-        quotations[supplierVal] = quotationVal;
+        selectedSupplier = supplierVal;
+        
+        // convert mapping to array
+        uint[] memory quantityVal2 = new uint[](items.length);
+        
+        for(uint i=0; i < items.length; i++) {
+            quantityVal2[i] = quantity[items[i]];
+        }
+        
+        PurchaseOrder pOrder = new PurchaseOrder(requester,approver,supplierVal,address(this),quotations[supplierVal],items,quantityVal2,Quotation(quotations[supplierVal]).getPrice());
+        
+        statusPOIssued = true;
+        purchaseOrder = address(pOrder);
+        emit QuotationConfirmed(Quotation(quotations[supplierVal]));
+        emit PurchaseOrderCreated(pOrder);
     }
 }
