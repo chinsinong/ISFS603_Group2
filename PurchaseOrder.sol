@@ -1,7 +1,7 @@
 pragma solidity ^0.4.25;
-pragma experimental ABIEncoderV2;
-import "./RFQ.sol";
-import "./Quotation.sol";
+//pragma experimental ABIEncoderV2;
+// import "./RFQ.sol";
+// import "./Quotation.sol";
 import "./DeliveryOrder.sol";
 
 contract PurchaseOrder {
@@ -13,18 +13,18 @@ contract PurchaseOrder {
     address private quotation;
     address private deliveryOrder;
     
-    string[] private items;
-
-    uint[] private quantity;
-    
-    uint[] private price;
+    bytes[10] private items;
+    uint[10] private quantity;
+    uint[10] private price;
     
     bool statusCompleted=false;
     bool statusPaid=false;
     
-    event DeliveryOrderCreated(address deliveryOrderAddr);
-    event PurchaseOrderCompleted(address purchaseOrderAddr);
-    event PurchaseOrderPaid(address purchaseOrderAddr);
+    event StatusChanged(string eventType, address addr);
+    
+    // event DeliveryOrderCreated(address deliveryOrderAddr);
+    // event PurchaseOrderCompleted(address purchaseOrderAddr);
+    // event PurchaseOrderPaid(address purchaseOrderAddr);
     
     constructor(
         address requesterVal,
@@ -32,19 +32,42 @@ contract PurchaseOrder {
         address supplierVal,
         address rfqVal,
         address quotationVal,
-        string[] itemsVal,
-        uint[] quantityVal,
-        uint[] priceVal
+        bytes itemVal,
+        uint[10] quantityVal,
+        uint[10] priceVal
     ) public {
+        require(requesterVal != approverVal, "requester and approver cannot be same person.");
+        //require(RFQ(rfqVal).getStatusApproved(), "RFQ must be approved before quotation can be created.");
+        
         requester = requesterVal;
         approver = approverVal;
         supplier = supplierVal;
         rfq = rfqVal;
         quotation = quotationVal;
         
-        items = itemsVal;
+        // items = itemsVal;
+        uint j = 0;
+        string memory itemVal2="";
+        
+        for(uint i; i<itemVal.length; i++) {
+            if(keccak256(abi.encodePacked(itemVal[i])) == keccak256(abi.encodePacked(";"))) {
+                items[j] = bytes(itemVal2);
+                j++;
+                itemVal2 = "";
+            }
+            else {
+                itemVal2 = string(abi.encodePacked(itemVal2,itemVal[i]));
+                
+                if(i == itemVal.length - 1) {
+                    items[j] = bytes(itemVal2);
+                }
+            }
+        }
+        
         quantity = quantityVal;
         price = priceVal;
+        
+        emit StatusChanged("Purchase order is created.", address(this));
     }
     
     function getInfo() public view returns(
@@ -55,44 +78,54 @@ contract PurchaseOrder {
         address quotationVal,
         address deliveryOrderVal,
         
-        string[] itemsVal,
-        uint[] quantityVal,
-        uint[] unitPriceVal,
+        string itemVal,
+        uint[10] quantityVal,
+        uint[10] unitPriceVal,
         
         bool statusCompletedVal,
         bool statusPaidVal
     ) {
         require(msg.sender == requester || msg.sender == approver || msg.sender == supplier, "Not authorized to information.");
         
-        return(requester, approver, supplier, rfq, quotation, deliveryOrder, items, quantity, price, statusCompleted, statusPaid);
+        string memory itemVal2="";
+        
+        for(uint i=0;i<10;i++) {
+            itemVal2 = string(abi.encodePacked(itemVal2,";",items[i]));
+        }
+        
+        return(requester, approver, supplier, rfq, quotation, deliveryOrder, itemVal2, quantity, price, statusCompleted, statusPaid);
     }
     
-    function createDeliveryOrder(
-        uint deliveryDateVal,
-        string deliverAddressVal
-    ) public {
-        require(msg.sender == supplier, "The delivery order can only be created by supplier.");
+    // function createDeliveryOrder(
+    //     uint deliveryDateVal,
+    //     string deliverAddressVal
+    // ) public {
+    //     require(msg.sender == supplier, "The delivery order can only be created by supplier.");
         
-        DeliveryOrder dOrder = new DeliveryOrder(requester, supplier, address(this), items, quantity, deliveryDateVal, deliverAddressVal);
+    //     string memory itemVal2="";
+    //     for(uint i=0;i<10;i++) {
+    //         itemVal2 = string(abi.encodePacked(itemVal2, ";", items[i]));
+    //     }
         
-        deliveryOrder = address(dOrder);
+    //     DeliveryOrder dOrder = new DeliveryOrder(requester, supplier, address(this), bytes(itemVal2), quantity, deliveryDateVal, deliverAddressVal);
         
-        emit DeliveryOrderCreated(dOrder);
-    }
-    
-    function setStatusCompleted() public {
-        require(msg.sender == requester || msg.sender == approver || msg.sender == supplier || msg.sender == deliveryOrder, "Not authorized to update information.");
-        require(!statusCompleted, "The purchase order is already completed.");
+    //     deliveryOrder = address(dOrder);
 
-        statusCompleted = true;
-        emit PurchaseOrderCompleted(this);
-    }
+    // }
     
-    function setStatusPaid() public {
-        require(msg.sender == requester || msg.sender == approver || msg.sender == supplier || msg.sender == deliveryOrder, "Not authorized to update information.");
-        require(!statusPaid, "The purchase order is already paid.");
+    // function setStatusCompleted() public {
+    //     require(msg.sender == requester || msg.sender == approver || msg.sender == supplier || msg.sender == deliveryOrder, "Not authorized to update information.");
+    //     require(!statusCompleted, "The purchase order is already completed.");
+
+    //     statusCompleted = true;
+    //     emit StatusChanged("Purchase order is completed", address(this));
+    // }
+    
+    // function setStatusPaid() public {
+    //     require(msg.sender == requester || msg.sender == approver || msg.sender == supplier || msg.sender == deliveryOrder, "Not authorized to update information.");
+    //     require(!statusPaid, "The purchase order is already paid.");
         
-        statusPaid = true;
-        emit PurchaseOrderPaid(this);
-    }
+    //     statusPaid = true;
+    //     emit StatusChanged("Purchase order is paid", address(this));
+    // }
 }

@@ -1,14 +1,18 @@
 pragma solidity ^0.4.25;
-pragma experimental ABIEncoderV2;
+//pragma experimental ABIEncoderV2;
 
 import "./Quotation.sol";
 import "./PurchaseOrder.sol";
 
 contract RFQ {
+
     address private requester;
     address private approver;
     
-    string[] private items;
+    uint itemCount=0;
+    bytes[10] private items;
+
+    mapping(string => uint) private itemsMap;
     mapping(string => uint) private quantity;
     
     bool private statusApproved = false;
@@ -21,14 +25,15 @@ contract RFQ {
     
     address private purchaseOrder;
     
-    event RFQApproved(address rfqAddr);
-    event QuotationCreated(address quotationAddr);
-    event QuotationSubmitted(address quotationAddr);
-    event QuotationRemoved(address quotationAddr);
-    event QuotationConfirmed(address quotationAddr);
-    event PurchaseOrderCreated(address purchaseOrderAddr);
+    event StatusChanged(string eventType, address addr);
+    // event RFQApproved(address rfqAddr);
+    // event QuotationCreated(address quotationAddr);
+    // event QuotationSubmitted(address quotationAddr);
+    // event QuotationRemoved(address quotationAddr);
+    // event QuotationConfirmed(address quotationAddr);
+    // event PurchaseOrderCreated(address purchaseOrderAddr);
     
-    constructor (
+    constructor(
         address requesterVal,
         address approverVal
         
@@ -39,28 +44,28 @@ contract RFQ {
         approver = approverVal;
     }
     
-    function getInfo() public view returns (
+    function getInfo() public view returns(
         address requesterVal,
         address approverVal,
-        string[] itemsVal,
-        uint[] quantityVal,
         bool statusApprovedVal,
         bool statusPOIssuedVal,
+        string itemVal,
+        uint[10] quantityVal,
         address[] suppliersVal,
-        address[] quotationsVal,
-        address selectedSupplierVal
-    ) {
+        address[] quotationsVal
+    ) 
+    {
+        string memory itemVal2="";
+        uint[10] memory quantityVal2;
         
-        // convert mapping to array
-        uint[] memory quantityVal2 = new uint[](items.length);
-        
-        for(uint i=0; i < items.length; i++) {
-            quantityVal2[i] = quantity[items[i]];
+        for(uint i=0;i<itemCount;i++) {
+            itemVal2 = string(abi.encodePacked(itemVal2,";",items[i]));
+            quantityVal2[i] = quantity[string(items[i])];
         }
-
+        
         address[] memory suppliersVal2 = new address[](suppliers.length);
         address[] memory quotationsVal2 = new address[](suppliers.length);
-        address selectedSupplierVal2;
+        //address selectedSupplierVal2;
         
         if(msg.sender == requester || msg.sender == approver) {
             // returns all suppliers and quotations information if function called by requester or approver
@@ -70,7 +75,7 @@ contract RFQ {
                 quotationsVal2[j] = quotations[suppliers[j]];
             }
             
-            selectedSupplierVal2 = selectedSupplier;
+            // selectedSupplierVal2 = selectedSupplier;
             
         } else if(suppliersList[msg.sender]) {
             // returns supplier specific information if function called by supplier
@@ -81,11 +86,89 @@ contract RFQ {
             quotationsVal2 = new address[](1);
             quotationsVal2[0] = quotations[msg.sender];
             
-            selectedSupplierVal2 = selectedSupplier;
+            // selectedSupplierVal2 = selectedSupplier;
         }
         
-        return (requester, approver, items, quantityVal2, statusApproved, statusPOIssued, suppliersVal2, quotationsVal2, selectedSupplierVal2);
+        //return (requester,approver, statusApproved, statusPOIssued, itemVal2, quantityVal2);
+        return (requester,approver, statusApproved, statusPOIssued, itemVal2, quantityVal2, suppliersVal2, quotationsVal2);
     }
+    
+    function getItems() public view returns(
+        bytes value
+    ) {
+        
+        string memory itemVal2="";
+        for(uint i=0;i<itemCount;i++) {
+            itemVal2 = string(abi.encodePacked(itemVal2, ";", items[i]));
+        }
+        
+        return (bytes(itemVal2));
+    }
+    
+    function getQuantity() public view returns(
+        uint[10] value
+    ) {
+        uint[10] memory quantityVal2;
+        
+        for(uint i=0;i<itemCount;i++) {
+            quantityVal2[i] = quantity[string(items[i])];
+        }
+        
+        return (quantityVal2);
+    }
+    
+    
+    // function getInfo() public view returns (
+    //     address requesterVal
+    //     address approverVal
+    //     //string itemsVal,
+    //     //uint[] quantityVal,
+    //     // bool statusApprovedVal,
+    //     // bool statusPOIssuedVal
+    //     // string suppliersVal,
+    //     // string quotationsVal,
+    //     // address selectedSupplierVal
+    // ) {
+        
+    //     string memory itemsVal2 = string(abi.encodePacked(items));
+        
+
+    //     // convert mapping to array
+    //     // uint[] memory quantityVal2 = new uint[](items.length);
+        
+    //     // for(uint i=0; i < items.length; i++) {
+    //     //     quantityVal2[i] = quantity[items[i]];
+    //     // }
+
+    //     // address[] memory suppliersVal2 = new address[](suppliers.length);
+    //     // address[] memory quotationsVal2 = new address[](suppliers.length);
+    //     // address selectedSupplierVal2;
+        
+    //     // if(msg.sender == requester || msg.sender == approver) {
+    //     //     // returns all suppliers and quotations information if function called by requester or approver
+    //     //     suppliersVal2 = suppliers;
+            
+    //     //     for(uint j=0; j < suppliers.length; j++) {
+    //     //         quotationsVal2[j] = quotations[suppliers[j]];
+    //     //     }
+            
+    //     //     selectedSupplierVal2 = selectedSupplier;
+            
+    //     // } else if(suppliersList[msg.sender]) {
+    //     //     // returns supplier specific information if function called by supplier
+            
+    //     //     suppliersVal2 = new address[](1);
+    //     //     suppliersVal2[0] = msg.sender;
+            
+    //     //     quotationsVal2 = new address[](1);
+    //     //     quotationsVal2[0] = quotations[msg.sender];
+            
+    //     //     selectedSupplierVal2 = selectedSupplier;
+    //     // }
+        
+    //     //return (requester, approver, string(abi.encodePacked(items)), string(abi.encodePacked(quantity)), statusApproved, statusPOIssued, suppliersVal2, quotationsVal2, selectedSupplierVal2);
+    //     return (requester);
+    // }
     
     function getStatusApproved() public view returns (
         bool statusApprovedVal
@@ -93,52 +176,54 @@ contract RFQ {
         return (statusApproved);
     }
     
-    function getItemInfo() public view returns (
-        string[] itemsVal,
-        uint[] quantityVal
-    ) {
+    // function getItemInfo() public view returns (
+    //     string[] itemsVal,
+    //     uint[] quantityVal
+    // ) {
         
-        // convert mapping to array
-        uint[] memory quantityVal2 = new uint[](items.length);
+    //     // convert mapping to array
+    //     uint[] memory quantityVal2 = new uint[](items.length);
         
-        for(uint i=0; i < items.length; i++) {
-            quantityVal2[i] = quantity[items[i]];
-        }
+    //     for(uint i=0; i < items.length; i++) {
+    //         quantityVal2[i] = quantity[items[i]];
+    //     }
 
-        return (items, quantityVal2);
-    }
+    //     return (items, quantityVal2);
+    // }
     
-    function getItemQuantity() public view returns (
-        uint[] quantityVal
-    ) {
-        uint[] memory quantityVal2 = new uint[](items.length);
+    // function getItemQuantity() public view returns (
+    //     uint[] quantityVal
+    // ) {
+    //     uint[] memory quantityVal2 = new uint[](items.length);
         
-        for(uint i=0; i < items.length; i++) {
-            quantityVal2[i] = quantity[items[i]];
-        }
-        return (quantityVal2);
-    }
+    //     for(uint i=0; i < items.length; i++) {
+    //         quantityVal2[i] = quantity[items[i]];
+    //     }
+    //     return (quantityVal2);
+    // }
     
-    function getrequester() public view returns (
-        address requesterVal
-    ) {
-        return (requester);
-    }
+    // function getrequester() public view returns (
+    //     address requesterVal
+    // ) {
+    //     return (requester);
+    // }
     
-    function getApprover() public view returns (
-        address approverVal
-    ) {
-        return (approver);
-    }
+    // function getApprover() public view returns (
+    //     address approverVal
+    // ) {
+    //     return (approver);
+    // }
     
     function additem(string itemVal, uint quantityVal) public {
         require(msg.sender == requester || msg.sender == approver, "Only requester or approver can add product.");
         require(statusApproved == false, "No item can be added after RFQ is approved.");
         require(bytes(itemVal).length > 0, "Item name cannot be empty.");
-        require(quantityVal >0, "Quantity cannot be empty.");
+        require(quantityVal > 0, "Quantity cannot be empty.");
         
         if(quantity[itemVal] == 0) {
-            items.push(itemVal);
+            items[itemCount] = bytes(itemVal);
+            itemsMap[itemVal] = itemCount;
+            itemCount++;
         }
         quantity[itemVal] += quantityVal;
     }
@@ -148,26 +233,18 @@ contract RFQ {
         require(statusApproved == false, "No item can be removed after RFQ is approved.");
         require(quantity[itemVal] > 0 , "Item does not exist in RFQ.");
 
-        bytes memory a = bytes(itemVal);
-        bytes memory b;
-        
         if(quantityVal >= quantity[itemVal]) {
             quantity[itemVal] = 0;
             
-            for(uint i=0; i < items.length; i++) {
-                b = bytes(items[i]);
-                
-                if(keccak256(a) == keccak256(b)) {
-                //if(keccak256(abi.encodePacked(itemVal)) == keccak256(abi.encodePacked(items[i]))) {
-                    
-                    for(uint j=i; j < items.length - 1; j++) {
-                        items[j] = items[j+1];
-                    }
-                    delete items[items.length - 1];
-                    items.length--;
-                    break;
-                }
-            }
+            uint i = itemsMap[itemVal];
+            uint j = itemCount - 1;
+            
+            items[i] = items[j];
+            itemsMap[string(items[i])] = i;
+            itemsMap[string(items[j])] = 0;
+            items[j] = "";
+            itemCount--;
+
         }
         else {
             quantity[itemVal] -= quantityVal;
@@ -177,10 +254,10 @@ contract RFQ {
     function approveRFQ() public {
         require(msg.sender == approver, "Only approver can approve the RFQ");
         require(statusApproved == false, "RFQ is already approved.");
-        require(items.length > 0, "No items in RFQ.");
+        require(itemCount > 0, "No items in RFQ.");
         
         statusApproved = true;
-        emit RFQApproved(this);
+        emit StatusChanged("RFQ is approved.", this);
     }
     
     function createQuotation(address requesterVal, address approverVal) public {
@@ -188,14 +265,13 @@ contract RFQ {
         require(approverVal != requester && approverVal != approver, "Quotation approver cannot be RFQ requester or approver.");
         require(statusApproved, "RFQ needs to be approved before quotation can be created.");
         
-        Quotation quote = new Quotation(address(this), requesterVal, approverVal);
-        
-        emit QuotationCreated(quote);
+        new Quotation(address(this), requesterVal, approverVal, this.getItems(), this.getQuantity());
     }
     
     function submitQuotation(address supplier, address quotationVal) public {
         require(supplier != requester && supplier != approver, "The supplier cannot be the requester or approver of the RFQ.");
         require(!statusPOIssued,"Cannot submit quotation after RFQ is closed.");
+        require(Quotation(quotationVal).getStatusApproved(), "Quotation not approved yet.");
         
         if(quotations[supplier] == address(0x0)) {
             suppliers.push(supplier);
@@ -203,38 +279,38 @@ contract RFQ {
         }
         
         quotations[supplier] = quotationVal;
-        emit QuotationSubmitted(Quotation(quotationVal));
+        emit StatusChanged("Quotation is submitted.", quotationVal);
     }
     
-    function removeQuotation() public {
-        require(!statusPOIssued,"Cannot remove quotation after RFQ is closed.");
-        require(quotations[msg.sender] > address(0x0), "No quotation found.");
+    // function removeQuotation() public {
+    //     require(!statusPOIssued,"Cannot remove quotation after RFQ is closed.");
+    //     require(quotations[msg.sender] > address(0x0), "No quotation found.");
         
-        emit QuotationRemoved(Quotation(quotations[msg.sender]));
+    //     emit StatusChanged("Quotation is removed.", quotations[msg.sender]);
         
-        quotations[msg.sender] = address(0x0);
-        suppliersList[msg.sender] = false;
+    //     quotations[msg.sender] = address(0x0);
+    //     suppliersList[msg.sender] = false;
         
-        // shift array forward after element is removed
-        for(uint i=0; i < suppliers.length; i++) {
+    //     // shift array forward after element is removed
+    //     for(uint i=0; i < suppliers.length; i++) {
                 
-            if(msg.sender == suppliers[i]) {
+    //         if(msg.sender == suppliers[i]) {
                 
-                for(uint j=i; j < suppliers.length - 1; j++) {
-                    suppliers[j] = suppliers[j+1];
+    //             for(uint j=i; j < suppliers.length - 1; j++) {
+    //                 suppliers[j] = suppliers[j+1];
                     
-                }
-                delete suppliers[suppliers.length - 1];
-                suppliers.length--;
+    //             }
+    //             delete suppliers[suppliers.length - 1];
+    //             suppliers.length--;
                 
-                break;
-            }
-        }
-    }  
+    //             break;
+    //         }
+    //     }
+    // }  
     
     function confirmQuotation(address supplierVal) public {
         require(msg.sender == approver, "Only approver can confirm quotation.");
-        require(suppliersList[supplierVal], "");
+        require(suppliersList[supplierVal], "No quotation found.");
         
         selectedSupplier = supplierVal;
         
@@ -242,14 +318,21 @@ contract RFQ {
         uint[] memory quantityVal2 = new uint[](items.length);
         
         for(uint i=0; i < items.length; i++) {
-            quantityVal2[i] = quantity[items[i]];
+            quantityVal2[i] = quantity[string(items[i])];
         }
         
-        PurchaseOrder pOrder = new PurchaseOrder(requester,approver,supplierVal,address(this),quotations[supplierVal],items,quantityVal2,Quotation(quotations[supplierVal]).getPrice());
-        
         statusPOIssued = true;
-        purchaseOrder = address(pOrder);
-        emit QuotationConfirmed(Quotation(quotations[supplierVal]));
-        emit PurchaseOrderCreated(pOrder);
+        emit StatusChanged("Quotation is confirmed", Quotation(quotations[supplierVal]));
+        
+        PurchaseOrder po = new PurchaseOrder(requester,approver,supplierVal,address(this),quotations[supplierVal],this.getItems(),this.getQuantity(),Quotation(quotations[supplierVal]).getPrice());
+        purchaseOrder = address(po);
     }
+    
+    function viewQuotation(address supplierVal) public view returns (uint[10] quantityVal) {
+        require(msg.sender == approver, "Only requester or approver can view quotation.");
+        require(suppliersList[supplierVal], "No quotation found.");
+        
+        return(Quotation(quotations[supplierVal]).getPrice());
+    }
+    
 }
